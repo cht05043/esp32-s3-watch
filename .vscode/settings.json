@@ -1,0 +1,31 @@
+{
+    "C_Cpp.intelliSenseEngine": "default",
+    "idf.espIdfPathWin": "e:\\esp-idf\\v5.4.1\\esp-idf",
+    "idf.toolsPathWin": "e:\\esp-tool",
+    "idf.pythonInstallPath": "e:\\esp-tool\\tools\\idf-python\\3.11.2\\python.exe",
+    "idf.flashType": "UART",
+    "idf.portWin": "COM4",
+    "idf.customExtraVars": {
+        "IDF_TARGET": "esp32s3"
+    },
+    "idf.openOcdConfigs": [
+        "board/esp32s3-builtin.cfg"
+    ],
+    "files.associations": {
+        "spi_master.h": "c",
+        "i2c.h": "c",
+        "gpio.h": "c",
+        "i2c_master.h": "c",
+        "esp_lcd_touch_cst816s.h": "c",
+        "esp_lcd_ili9341.h": "c",
+        "pcf85063.h": "c",
+        "esp_task_wdt.h": "c",
+        "lvgl.h": "c",
+        "semphr.h": "c",
+        "rtc_io.h": "c",
+        "chrono": "c",
+        "adc_oneshot.h": "c",
+        "esp_lcd_panel_io.h": "c",
+        "ledc.h": "c"
+    }
+}
