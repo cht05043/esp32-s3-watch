@@ -20,6 +20,7 @@
 #include "driver/ledc.h"
 #include "esp_pm.h"
 
+#include "buzzer/buzzer.h"
 #include "esp_lcd_ili9341.h"
 #include "esp_lcd_touch_cst816s.h"
 #include "ui/ui.h"
@@ -240,12 +241,11 @@ static void clear_button_cb(lv_event_t *event) {
 static void update_clock(void *param) {
     rtc_time  now;
     if (rtc_get_time(&now) == ESP_OK){
-        // 計算指針的角度 (順時針旋轉)
+        // calculate clock angle
         float hour_angle = fmodf((now.hours % 12 + now.minutes / 60.0), 12) * 30.0;
         float minute_angle = now.minutes * 6.0;
         float second_angle = now.seconds * 6.0;
-        // 應用旋轉 (注意 LVGL 的角度是逆時針的，所以我們使用負值)
-        lv_img_set_angle(ui_HourPng, hour_angle * 10);   // 角度乘以 10 是因為 lv_img_set_angle 的單位是 0.1 度
+        lv_img_set_angle(ui_HourPng, hour_angle * 10);   // because of set angle unit is 0.1 deg，we need to  multiple 10
         lv_img_set_angle(ui_MinutePng, minute_angle * 10);
         lv_img_set_angle(ui_secondPng, second_angle * 10);
         char time_str[8];
@@ -300,7 +300,7 @@ void start_clock_timer() {
         .name = "clock_update"
     };
     ESP_ERROR_CHECK(esp_timer_create(&timer_args, &clock_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(clock_timer, 1000000)); // 每秒觸發一次 (1000000 微秒)
+    ESP_ERROR_CHECK(esp_timer_start_periodic(clock_timer, 1000000)); // 1 sec a time
 }
 
 /**
@@ -408,7 +408,8 @@ void enter_light_sleep()
     const uint64_t wakeup_pin_mask = (1ULL << wakeup_gpio); // set bit mask
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);    
 
-    // 設定為 Deep Sleep 喚醒來源
+    // set wake up source
+
     // gpio_wakeup_enable(wakeup_gpio, GPIO_INTR_LOW_LEVEL);
     // esp_err_t ret=esp_sleep_enable_gpio_wakeup();
     //  esp_err_t ret =  esp_sleep_enable_ext0_wakeup(wakeup_gpio,0);
@@ -422,7 +423,6 @@ void enter_light_sleep()
              s_system_is_sleeping = false;
             xSemaphoreGive(s_sleep_state_mutex);
         }
-        // ... 恢復顯示、重啟計時器、恢復 LVGL 任務等 ...
 		//resume display
         if(panel_handle){
 			esp_lcd_panel_disp_on_off(panel_handle, true); 
@@ -491,8 +491,8 @@ static void battery_task(void *arg){
 	ESP_LOGI(TAG, "Starting battery task");
 	esp_err_t err = ESP_OK;
     int raw_value;
-    // 选择要读取的 ADC 通道和对应的 GPIO 引脚
-    adc_channel_t channel = GPIO_NUM_1; // 例如，读取 GPIO1 
+    // choose battery read gpio num
+    adc_channel_t channel = GPIO_NUM_1; 
     while(1){
         ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, channel, &raw_value));
         // ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Value: %d", ADC_UNIT_1 + 1, channel, raw_value);
@@ -538,7 +538,7 @@ static void rtc_pcf85063_task(void *arg)
 {
     ESP_LOGI(TAG, "Starting RTC task");
 	esp_err_t err = ESP_OK;
-	// rtc_pcf85063_init();
+	 rtc_pcf85063_init();
 	// err = rtc_set_time(12, 30, 45, 0,27, 9, 24); // Set the time
     
 	// if (err == ESP_OK) {
@@ -720,7 +720,6 @@ static void example_lvgl_port_task(void *arg)
     lv_obj_add_event_cb(ui_startbutton, start_button_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(ui_stopbutton, stop_button_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(ui_clearbutton, clear_button_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_clearbutton, clear_button_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(ui_startbutton2, setTime_button_cb, LV_EVENT_CLICKED, NULL);
 
     uint32_t task_delay_ms = EXAMPLE_LVGL_TASK_MAX_DELAY_MS;
@@ -804,9 +803,9 @@ void simple_task(void *pvParameters)
 void app_main(void)
 {
     esp_pm_config_esp32_t pm_config = {
-        .max_freq_mhz = 80,  // 最大頻率設定為 80 MHz
-        .min_freq_mhz = 80,  // 最低頻率設定為 80 MHz（可以根據需要設為 160 MHz）
-        .light_sleep_enable = true,  // 允許進入 light sleep 模式
+        .max_freq_mhz = 160,  // max freq set 
+        .min_freq_mhz = 80,  // min freq set
+        .light_sleep_enable = true,  // light sleep allow
     };
 
     esp_pm_configure(&pm_config); 
@@ -844,10 +843,9 @@ void app_main(void)
     };
     ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_cfg1, &adc1_handle));
 
-    // 配置 ADC 通道
     adc_oneshot_chan_cfg_t config = {
-        .atten = ADC_ATTEN_DB_11, // 设置衰减 (0dB, 2.5dB, 6dB, 11dB) - 根据您的输入电压范围选择
-        .bitwidth = ADC_BITWIDTH_DEFAULT, // 设置采样位数 (可以根据需要选择)
+        .atten = ADC_ATTEN_DB_11, // set decrease (according to the input voltage)
+        .bitwidth = ADC_BITWIDTH_DEFAULT, // set sampling digit 
     };
 
 
@@ -942,7 +940,6 @@ void app_main(void)
             esp_err_t auto_sleep_err = cst816s_write_byte(tp, 0xFE, 0x01); // 寫入非零值 (0x01) 到 DisAutoSleep 寄存器 (0xFE)
             if (auto_sleep_err != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to disable CST816S auto sleep: %s", esp_err_to_name(auto_sleep_err));
-                // 這裡可以選擇是否認為這是關鍵錯誤
             } else {
                  ESP_LOGI(TAG, "CST816S auto sleep disabled.");
             }
@@ -1007,6 +1004,10 @@ void app_main(void)
     // xTaskCreate(example_lvgl_port_task, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE, NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL);
 	// xTaskCreate(rtc_pcf85063_task, "RTC", RTC_TASK_STACK_SIZE,NULL, 1, NULL);
 	
+
+
+    // create lvgl task pin to app core
+    xTaskCreatePinnedToCore(example_lvgl_port_task, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE, NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL, APP_CPU_NUM);
     xTaskCreatePinnedToCore(rtc_pcf85063_task, "RTC", RTC_TASK_STACK_SIZE, NULL, NORMAL_TASK_PRIORITY, NULL, PRO_CPU_NUM);
 
     /* =============== Initialize clock timer =============== */
@@ -1016,10 +1017,6 @@ void app_main(void)
         .name = "timer_counter "
     };
     ESP_ERROR_CHECK(esp_timer_create(&timer_args, &time_counter));
-
-    // create lvgl task pin to app core
-    xTaskCreatePinnedToCore(example_lvgl_port_task, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE, NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL, APP_CPU_NUM);
-
 
 
 	// create rtc task pin to pro core
@@ -1037,37 +1034,12 @@ void app_main(void)
     }
 
     /* =============== Start Inactivity Timer =============== */
-    // 啟動非活動計時器
     reset_inactivity_timer();
 
     ESP_LOGI(TAG, "App main finished, entering idle loop.");
 
-    // ledc_timer_config_t ledc_timer = {
-    //     .speed_mode       = LEDC_LOW_SPEED_MODE,
-    //     .duty_resolution  = LEDC_TIMER_10_BIT,   // 10-bit resolution
-    //     .timer_num        = LEDC_TIMER_0,
-    //     .freq_hz          = 1000,                // 初始頻率 1kHz
-    //     .clk_cfg          = LEDC_AUTO_CLK
-    // };
-    // ledc_timer_config(&ledc_timer);
-
-    // ledc_channel_config_t ledc_channel = {
-    //     .speed_mode     = LEDC_LOW_SPEED_MODE,
-    //     .channel        = LEDC_CHANNEL_0,
-    //     .timer_sel      = LEDC_TIMER_0,
-    //     .intr_type      = LEDC_INTR_DISABLE,
-    //     .gpio_num       = 42,
-    //     .duty           = 512,                   // 50% duty (1023 max for 10-bit)
-    //     .hpoint         = 0
-    // };
-    // ledc_channel_config(&ledc_channel);
-
     while (1) {
-        // ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 512); // 50% duty
-        // ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
         vTaskDelay(pdMS_TO_TICKS(10));		//delay
-        // ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);   // 0% duty = 靜音
-        // ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
         esp_task_wdt_reset();		// reset app_main watchdog
     }
 }

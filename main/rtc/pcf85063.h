@@ -76,3 +76,8 @@ esp_err_t rtc_set_time(rtc_time *time_out) ;
 *@brief init rtc
 **/
 esp_err_t rtc_pcf85063_init() ;
+
+/**
+*@brief set alarm
+**/
+void rtc_set_alarm(rtc_time *time)

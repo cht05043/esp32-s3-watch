@@ -26,6 +26,14 @@
         "chrono": "c",
         "adc_oneshot.h": "c",
         "esp_lcd_panel_io.h": "c",
-        "ledc.h": "c"
+        "ledc.h": "c",
+        "stdio.h": "c",
+        "cstdint": "cpp",
+        "freertos.h": "c",
+        "buzzer.h": "c",
+        "array": "c",
+        "string": "c",
+        "string_view": "c",
+        "span": "c"
     }
 }
