@@ -134,11 +134,12 @@ esp_err_t rtc_pcf85063_init() {
 void rtc_set_alarm(rtc_time *time) {
 
     uint8_t alarm_data[5];
-    alarm_data[0] = (time->seconds&0x80)?0x80:time->seconds; //second alarm
-    alarm_data[1] = (time->minutes&0x80)?0x80:time->minutes; // minute alarm
-    alarm_data[2] = (time->hours&0x80)?0x80:time->hours; // HOUR_ALARM masked (bit7=1, 不比較小時)
-    alarm_data[3] = (time->day&0x80)?0x80:time->day; // DAY_ALARM masked
-    alarm_data[4] = (time->weekday&0x80)?0x80:time->weekday; // WEEKDAY_ALARM masked
+    // masked (bit7=1, no compare)
+    alarm_data[0] = (time->seconds&0x80)?0x80:time->seconds; 
+    alarm_data[1] = (time->minutes&0x80)?0x80:time->minutes; 
+    alarm_data[2] = (time->hours&0x80)?0x80:time->hours; 
+    alarm_data[3] = (time->day&0x80)?0x80:time->day; 
+    alarm_data[4] = (time->weekday&0x80)?0x80:time->weekday; 
 
     rtc_write_reg(0x0B, alarm_data, 5);
 

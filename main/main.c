@@ -19,6 +19,8 @@
 #include "esp_adc/adc_oneshot.h"
 #include "driver/ledc.h"
 #include "esp_pm.h"
+#include "nvs_flash.h"
+
 
 #include "buzzer/buzzer.h"
 #include "esp_lcd_ili9341.h"
@@ -26,6 +28,7 @@
 #include "ui/ui.h"
 #include "rtc/pcf85063.h"
 #include "qmi8658/qmi8658.h"
+#include "mywifi/mywifi.h"
 
 
 #define EXAMPLE_LCD_H_RES              240
@@ -86,6 +89,7 @@ extern lv_obj_t * ui_minset;
 extern lv_obj_t * ui_stepCount;
 extern lv_obj_t * ui_Bar1;
 extern lv_obj_t * ui_loading;
+extern lv_obj_t * ui_wakeupSwitch;
 
 static const char *TAG = "main";
 
@@ -703,6 +707,40 @@ static void example_lvgl_unlock(void)
     xSemaphoreGive(lvgl_mux);
 }
 
+void wifi_ap_task(void *pvParameter) {
+    start_wifi_ap();  // 原本的 Wi-Fi 初始化流程放這裡
+    start_web_server();
+    vTaskDelete(NULL);
+}
+
+/**
+*@brief test switch wifi handler
+**/
+void wifi_switch_event_handler(lv_event_t *e)
+{
+    nvs_flash_erase();
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // 如果 NVS 初始化錯誤，則擦除並重新初始化
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+    lv_obj_t * sw = lv_event_get_target(e);
+    bool is_checked = lv_obj_has_state(sw, LV_STATE_CHECKED);
+
+    if (is_checked) {
+            printf("Wi-Fi Switch 開啟\n");
+            xTaskCreate(wifi_ap_task, "wifi_ap_task", 4096, NULL, 5, NULL);
+        } else {
+            printf("Wi-Fi Switch 關閉\n");
+            stop_wifi_ap();      // 你可以自己實作一個關閉 Wi-Fi 的函式
+            stop_web_server();   // 如果需要關閉 Web Server
+        
+    }
+}
+
+
 /**
 *@brief lvgl task
 **/
@@ -721,6 +759,8 @@ static void example_lvgl_port_task(void *arg)
     lv_obj_add_event_cb(ui_stopbutton, stop_button_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(ui_clearbutton, clear_button_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(ui_startbutton2, setTime_button_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(ui_wakeupSwitch, wifi_switch_event_handler, LV_EVENT_VALUE_CHANGED, NULL);
+
 
     uint32_t task_delay_ms = EXAMPLE_LVGL_TASK_MAX_DELAY_MS;
     while (1) {

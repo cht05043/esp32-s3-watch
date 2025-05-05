@@ -1,3 +1,6 @@
+#ifndef PCF85063_H
+#define PCF85063_H
+
 #define PCF85063_ADDR        0x51      // PCF85063 I2C address
 #define I2C_TIMEOUT_MS       1000
 #define I2C_MASTER_NUM       0 // I2C port number
@@ -39,7 +42,7 @@ typedef struct{
 	uint8_t day;
 	DAY weekday; 
 	MONTH month; 
-	uint8_t year;
+	uint16_t year;
 }rtc_time;
 
 /**
@@ -80,4 +83,6 @@ esp_err_t rtc_pcf85063_init() ;
 /**
 *@brief set alarm
 **/
-void rtc_set_alarm(rtc_time *time)
+void rtc_set_alarm(rtc_time *time);
+
+#endif
