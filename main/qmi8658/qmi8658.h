@@ -1,3 +1,5 @@
+#ifndef QMI8658_H
+#define QMI8658_H
 #include <math.h>
 #include "esp_timer.h"
 
@@ -122,3 +124,5 @@ void reset_step_count();
  * @brief moving average filter acc
  */
 void filter_acc_ema(motion_data_t *data);
+
+#endif

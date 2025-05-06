@@ -35,6 +35,12 @@
         "string": "c",
         "string_view": "c",
         "span": "c",
-        "mywifi.h": "c"
+        "mywifi.h": "c",
+        "time.h": "c",
+        "esp_http_server.h": "c",
+        "param.h": "c",
+        "esp_wifi.h": "c",
+        "charconv": "c",
+        "string.h": "c"
     }
 }

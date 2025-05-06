@@ -20,6 +20,7 @@
 #include "driver/ledc.h"
 #include "esp_pm.h"
 #include "nvs_flash.h"
+#include "esp_spiffs.h"
 
 
 #include "buzzer/buzzer.h"
@@ -718,14 +719,6 @@ void wifi_ap_task(void *pvParameter) {
 **/
 void wifi_switch_event_handler(lv_event_t *e)
 {
-    nvs_flash_erase();
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        // 如果 NVS 初始化錯誤，則擦除並重新初始化
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
     lv_obj_t * sw = lv_event_get_target(e);
     bool is_checked = lv_obj_has_state(sw, LV_STATE_CHECKED);
 
@@ -739,7 +732,6 @@ void wifi_switch_event_handler(lv_event_t *e)
         
     }
 }
-
 
 /**
 *@brief lvgl task
@@ -838,6 +830,40 @@ void simple_task(void *pvParameters)
 }
 
 /**
+*@brief init spiffs file system
+**/
+static esp_err_t init_spiffs(void)
+{
+    esp_vfs_spiffs_conf_t conf = {
+      .base_path = "/spiffs",
+      .partition_label = NULL,
+      .max_files = 5,   // 可以同時打開的最大文件數
+      .format_if_mount_failed = true
+    };
+
+    esp_err_t ret = esp_vfs_spiffs_register(&conf);
+    if (ret != ESP_OK) {
+        if (ret == ESP_FAIL) {
+            ESP_LOGE(TAG, "Failed to mount or format filesystem.Error: %s", esp_err_to_name(ret));
+        } else if (ret == ESP_ERR_NOT_FOUND) {
+            ESP_LOGE(TAG, "Failed to find SPIFFS partition");
+        } else {
+            ESP_LOGE(TAG, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
+        }
+        return ret;
+    }
+
+    size_t total = 0, used = 0;
+    ret = esp_spiffs_info(NULL, &total, &used);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get SPIFFS partition information (%s)", esp_err_to_name(ret));
+    } else {
+        ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
+    }
+    return ret;
+}
+
+/**
 *@brief main function
 **/
 void app_main(void)
@@ -863,6 +889,19 @@ void app_main(void)
     s_sleep_state_mutex=xSemaphoreCreateMutex();
     assert(s_sleep_state_mutex);
 	
+
+	/* =============== Initialize nvs and spiffs=============== */
+    nvs_flash_erase();
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // 如果 NVS 初始化錯誤，則擦除並重新初始化
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+    ret = init_spiffs();
+    ESP_ERROR_CHECK(ret);
+
 	/* =============== Initialize gpio back light =============== */
     gpio_reset_pin(GPIO_BL);
 	gpio_set_direction(GPIO_BL, GPIO_MODE_OUTPUT);

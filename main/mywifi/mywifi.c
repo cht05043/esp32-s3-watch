@@ -1,15 +1,25 @@
 #include "mywifi.h"
 
 static httpd_handle_t server = NULL;
+static esp_netif_t *ap_netif = NULL;
+static bool wifi_initialized = false;
 
 /**
 *@brief Start wifi ap mode
 **/
 void start_wifi_ap()
 { 
-      // STEP 1: init netif
-      esp_netif_init();
-      esp_event_loop_create_default();
+    if (!wifi_initialized){
+        // STEP 1: init netif
+        esp_netif_init();
+        esp_event_loop_create_default();
+
+        ap_netif = esp_netif_create_default_wifi_ap();
+        assert(ap_netif != NULL);
+
+        wifi_initialized = true;
+    }
+      
   
       // STEP 2: stop all wifi setting
       esp_wifi_stop();
@@ -40,12 +50,6 @@ void start_wifi_ap()
       // Start WiFi ap
       esp_wifi_start();
   
-      // open and start default wifi AP port
-      esp_netif_t *netif = esp_netif_create_default_wifi_ap();
-      if (netif == NULL) {
-        ESP_LOGE("Wi-Fi", "Failed to create default wifi AP netif");
-        return;
-    }
   
       ESP_LOGI("Wi-Fi", "Wi-Fi AP mode start: Watch_Setup");
 }
@@ -132,15 +136,74 @@ esp_err_t time_post_handler(httpd_req_t *req)
 **/
 esp_err_t root_get_handler(httpd_req_t *req)
 {
-    const char *html = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body>"
-                   "<form action=\"/set_time\" method=\"POST\">"
-                   "Choose Time：<input type=\"datetime-local\" name=\"datetime\">"
-                   "<input type=\"submit\" value=\"Set\">"
-                   "</form>"
-                   "</body></html>";
+    // const char *html = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body>"
+    //                "<form action=\"/set_time\" method=\"POST\">"
+    //                "Choose Time：<input type=\"datetime-local\" name=\"datetime\">"
+    //                "<input type=\"submit\" value=\"Set\">"
+    //                "</form>"
+    //                "</body></html>";
 
-    httpd_resp_set_type(req, "text/html; charset=UTF-8");
-    httpd_resp_sendstr(req, html);
+    // httpd_resp_set_type(req, "text/html; charset=UTF-8");
+    // httpd_resp_sendstr(req, html);
+    // return ESP_OK;
+    FILE *f = fopen("/spiffs/index.html", "r");
+    if (f == NULL) {
+        ESP_LOGE("Web Server", "Failed to open index.html");
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+        // 读取文件内容并发送到客户端
+        char buffer[512];
+        size_t read_bytes;
+        httpd_resp_set_type(req, "text/html; charset=UTF-8");
+    
+        while ((read_bytes = fread(buffer, 1, sizeof(buffer), f)) > 0) {
+            httpd_resp_send_chunk(req, buffer, read_bytes);
+        }
+    
+        fclose(f);  // 关闭文件
+        httpd_resp_send_chunk(req, NULL, 0);  // 结束响应
+        return ESP_OK;
+}
+
+esp_err_t static_file_get_handler(httpd_req_t *req)
+{
+    const char *uri = req->uri;
+    char path[128];
+
+    // 根据 URI 设置正确的文件路径
+    if (strcmp(uri, "/style.css") == 0) {
+        snprintf(path, sizeof(path), "/spiffs/style.css");
+    } else if (strcmp(uri, "/script.js") == 0) {
+        snprintf(path, sizeof(path), "/spiffs/script.js");
+    } else {
+        ESP_LOGE("Web Server", "URI '%s' not found", uri);
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+
+    // 打开静态文件
+    FILE *f = fopen(path, "r");
+    if (f == NULL) {
+        ESP_LOGE("Web Server", "Failed to open file: %s", path);
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+
+    // 读取文件并发送内容到客户端
+    char buffer[512];
+    size_t read_bytes;
+    httpd_resp_set_type(req, "text/css; charset=UTF-8");  // 根据文件类型设置响应类型，CSS
+    if (strstr(uri, "script.js") != NULL) {
+        httpd_resp_set_type(req, "application/javascript; charset=UTF-8");  // JavaScript 文件类型
+    }
+
+    while ((read_bytes = fread(buffer, 1, sizeof(buffer), f)) > 0) {
+        httpd_resp_send_chunk(req, buffer, read_bytes);
+    }
+
+    fclose(f);  // 关闭文件
+    httpd_resp_send_chunk(req, NULL, 0);  // 结束响应
     return ESP_OK;
 }
 
@@ -167,6 +230,20 @@ void start_web_server()
         .handler = time_post_handler
     };
     httpd_register_uri_handler(server, &set_time);
+
+    httpd_uri_t style_css = {
+        .uri = "/style.css",
+        .method = HTTP_GET,
+        .handler = static_file_get_handler
+    };
+    httpd_register_uri_handler(server, &style_css);
+
+    httpd_uri_t script_js = {
+        .uri = "/script.js",
+        .method = HTTP_GET,
+        .handler = static_file_get_handler
+    };
+    httpd_register_uri_handler(server, &script_js);
 }
 
 /**

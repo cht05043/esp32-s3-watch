@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32-S3 Web Server</title>
+    <link rel="stylesheet" href="/style.css"> </head>
+<body>
+    <div class="container">
+        <h1>ESP32-S3 狀態</h1>
+
+        <div class="section">
+            <h2>目前時間</h2>
+            <p id="currentTime">載入中...</p>
+        </div>
+
+        <div class="section">
+            <h2>設定時間</h2>
+            <form id="setTimeForm">
+                <input type="datetime-local" id="newTime" name="newTime">
+                <button type="submit">設定</button>
+            </form>
+            <p id="setTimeStatus"></p> </div>
+
+        <div class="section">
+            <h2>記步數</h2>
+            <p id="stepCount">載入中...</p>
+        </div>
+
+        <div class="section">
+            <h2>連接設備</h2>
+            <div id="connectedDevices">載入中...</div>
+        </div>
+    </div>
+
+    <script src="/script.js"></script> </body>
+</html>
