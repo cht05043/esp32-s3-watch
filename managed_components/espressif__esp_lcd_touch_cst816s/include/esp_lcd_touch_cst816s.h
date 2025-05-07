@@ -17,9 +17,6 @@
 extern "C" {
 #endif
 
-
-esp_err_t cst816s_write_byte(esp_lcd_touch_handle_t tp_handle, uint8_t reg_addr, uint8_t data);
-esp_err_t cst816s_read_byte(esp_lcd_touch_handle_t tp_handle, uint8_t reg_addr, uint8_t *data,size_t len);
 /**
  * @brief Create a new CST816S touch driver
  *

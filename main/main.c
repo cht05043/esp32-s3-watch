@@ -97,6 +97,7 @@ static const char *TAG = "main";
 static SemaphoreHandle_t    touch_mux  			= NULL;
 static SemaphoreHandle_t    lvgl_mux    		= NULL;
 SemaphoreHandle_t    		i2c_mux 			= NULL;
+SemaphoreHandle_t           step_count_mux     = NULL;
 esp_timer_handle_t 			inactivity_timer 	= NULL;
 esp_lcd_touch_handle_t    	tp              	= NULL;
 adc_oneshot_unit_handle_t adc1_handle           = NULL;
@@ -529,7 +530,9 @@ static void qmi8658_task(void *arg){
             ESP_LOGE(TAG, "Failed to get acc/gyro!!");
         }
 		filter_acc_ema(&curData);
+        xSemaphoreTake(step_count_mux,pdMS_TO_TICKS(100));
 		curstep = update_step_count(&curData);
+        xSemaphoreGive(step_count_mux);
         sprintf(step, "%d",curstep);
         lv_label_set_text(ui_stepCount, step);
         vTaskDelay(40 / portTICK_PERIOD_MS);		//25hz
@@ -544,26 +547,19 @@ static void rtc_pcf85063_task(void *arg)
     ESP_LOGI(TAG, "Starting RTC task");
 	esp_err_t err = ESP_OK;
 	 rtc_pcf85063_init();
-	// err = rtc_set_time(12, 30, 45, 0,27, 9, 24); // Set the time
-    
-	// if (err == ESP_OK) {
-    //     ESP_LOGI(TAG, "Time set successfully");
-    // } else {
-    //     ESP_LOGE(TAG, "Failed to set time");
-    // }
 	rtc_time now;
     while (1) {
-        // Get and log the current time
-        // UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
-        // ESP_LOGI(TAG, "RTC task stack high water mark: %u bytes", uxHighWaterMark * configMINIMAL_STACK_SIZE);
-        // ESP_LOGI(TAG, "RTC task is running, about to get time");
-        
         err = rtc_get_time(&now);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to get time");
+        }else{
+            if(now.hours == 0 && now.minutes == 0 && now.seconds ==0){
+                xSemaphoreTake(step_count_mux,pdMS_TO_TICKS(100));
+                reset_step_count();
+                xSemaphoreGive(step_count_mux);
+                ESP_LOGI(TAG,"Step reset! ");
+            }
         }
-        
-        
 		//delay for 1 second
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
@@ -882,6 +878,8 @@ void app_main(void)
 	
     touch_mux = xSemaphoreCreateBinary();
     assert(touch_mux);
+    step_count_mux = xSemaphoreCreateBinary();
+    assert(step_count_mux);
     i2c_mux = xSemaphoreCreateMutex();
     assert(i2c_mux);
     lvgl_mux = xSemaphoreCreateMutex();
@@ -1014,26 +1012,26 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_cst816s(tp_io_handle, &tp_cfg, &tp));
 
     {
-        uint8_t val = 0;
-        if (tp != NULL) {
-            esp_err_t auto_sleep_err = cst816s_write_byte(tp, 0xFE, 0x01); // 寫入非零值 (0x01) 到 DisAutoSleep 寄存器 (0xFE)
-            if (auto_sleep_err != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to disable CST816S auto sleep: %s", esp_err_to_name(auto_sleep_err));
-            } else {
-                 ESP_LOGI(TAG, "CST816S auto sleep disabled.");
-            }
-            cst816s_write_byte(tp, 0xed, 0x64);
-            cst816s_read_byte(tp,0xed,&val,1);
-            ESP_LOGI(TAG, "register ed val = %x.", val);
-            cst816s_write_byte(tp, 0xfa, 0x71);//original 71
-            cst816s_read_byte(tp,0xfa,&val,1);
-            ESP_LOGI(TAG, "register fa val = %x.", val);
-            cst816s_write_byte(tp, 0xfd, 0x04);
-            cst816s_read_byte(tp,0xfd,&val,1);
-            ESP_LOGI(TAG, "register fd val = %x.", val);
-            cst816s_read_byte(tp,0xfe,&val,1);
-            ESP_LOGI(TAG, "register fe val = %x.", val);
-        }
+        // uint8_t val = 0;
+        // if (tp != NULL) {
+        //     esp_err_t auto_sleep_err = cst816s_write_byte(tp, 0xFE, 0x01); // 寫入非零值 (0x01) 到 DisAutoSleep 寄存器 (0xFE)
+        //     if (auto_sleep_err != ESP_OK) {
+        //         ESP_LOGE(TAG, "Failed to disable CST816S auto sleep: %s", esp_err_to_name(auto_sleep_err));
+        //     } else {
+        //          ESP_LOGI(TAG, "CST816S auto sleep disabled.");
+        //     }
+        //     cst816s_write_byte(tp, 0xed, 0x64);
+        //     cst816s_read_byte(tp,0xed,&val,1);
+        //     ESP_LOGI(TAG, "register ed val = %x.", val);
+        //     cst816s_write_byte(tp, 0xfa, 0x71);//original 71
+        //     cst816s_read_byte(tp,0xfa,&val,1);
+        //     ESP_LOGI(TAG, "register fa val = %x.", val);
+        //     cst816s_write_byte(tp, 0xfd, 0x04);
+        //     cst816s_read_byte(tp,0xfd,&val,1);
+        //     ESP_LOGI(TAG, "register fd val = %x.", val);
+        //     cst816s_read_byte(tp,0xfe,&val,1);
+        //     ESP_LOGI(TAG, "register fe val = %x.", val);
+        // }
     }
 	/* =============== Initialize lvgl =============== */
     ESP_LOGI(TAG, "Initialize LVGL");

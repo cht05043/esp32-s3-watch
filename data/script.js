@@ -62,7 +62,7 @@ setTimeForm.addEventListener('submit', async function(event) {
     event.preventDefault(); // 阻止默認的表單提交（頁面重新整理）
 
     const formData = new FormData(setTimeForm);
-    const newTimeValue = formData.get('newTime'); // 獲取 input 的值
+    const newTimeValue = formData.get('datetime'); // 獲取 input 的值
 
     if (!newTimeValue) {
         setTimeStatusElement.textContent = '請選擇時間';
@@ -72,12 +72,12 @@ setTimeForm.addEventListener('submit', async function(event) {
 
     // 將數據發送給 ESP32 的 /settime endpoint
     try {
-        const response = await fetch('/settime', {
+        const response = await fetch('/set_time', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded', // 或 application/json 如果你選擇用 JSON 發送
             },
-            body: `newTime=${encodeURIComponent(newTimeValue)}`, // URL-encoded 格式
+            body: `datetime=${encodeURIComponent(newTimeValue)}`, // URL-encoded 格式
             // body: JSON.stringify({ newTime: newTimeValue }), // JSON 格式範例
         });
 

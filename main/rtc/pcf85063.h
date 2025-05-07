@@ -4,6 +4,8 @@
 #define PCF85063_ADDR        0x51      // PCF85063 I2C address
 #define I2C_TIMEOUT_MS       1000
 #define I2C_MASTER_NUM       0 // I2C port number
+#define ctrl1 0x00
+#define ctrl2 0x01
 
 
 

@@ -10,7 +10,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
-#include "driver/rtc_io.h"
 #include "driver/i2c.h"
 #include "esp_system.h"
 #include "esp_err.h"
@@ -18,7 +17,6 @@
 #include "esp_check.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_touch.h"
-#include "esp_sleep.h"
 
 #define POINT_NUM_MAX       (1)
 
@@ -63,12 +61,9 @@ esp_err_t esp_lcd_touch_new_i2c_cst816s(const esp_lcd_panel_io_handle_t io, cons
         const gpio_config_t int_gpio_config = {
             .mode = GPIO_MODE_INPUT,
             .intr_type = GPIO_INTR_NEGEDGE,
-            .pull_up_en = GPIO_PULLDOWN_ENABLE,
             .pin_bit_mask = BIT64(cst816s->config.int_gpio_num)
         };
-        
         ESP_GOTO_ON_ERROR(gpio_config(&int_gpio_config), err, TAG, "GPIO intr config failed");
-
 
         /* Register interrupt callback */
         if (cst816s->config.interrupt_callback) {
@@ -186,67 +181,4 @@ static esp_err_t i2c_read_bytes(esp_lcd_touch_handle_t tp, uint16_t reg, uint8_t
     ESP_RETURN_ON_FALSE(data, ESP_ERR_INVALID_ARG, TAG, "Invalid data");
 
     return esp_lcd_panel_io_rx_param(tp->io, reg, data, len);
-}
-
-extern SemaphoreHandle_t i2c_mux;
-
-esp_err_t cst816s_write_byte(esp_lcd_touch_handle_t tp_handle, uint8_t reg_addr, uint8_t data)
-{
-    // Get the I2C port num from the touch handle (implementation depends on driver structure)
-    // Alternatively, pass the I2C port num directly if it's simpler in your structure
-    // For example, assume I2C_MASTER_NUM is defined and accessible here
-    int i2c_port = 0; // Replace with actual I2C port number if needed
-    uint8_t dev_addr = 0x15; // Replace with actual CST816S I2C address
-
-    esp_err_t ret = ESP_FAIL;
-    TickType_t mutex_timeout = pdMS_TO_TICKS(10); // Use a short timeout
-
-    if (xSemaphoreTake(i2c_mux, mutex_timeout) == pdTRUE) {
-        i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-        i2c_master_start(cmd);
-        i2c_master_write_byte(cmd, (dev_addr << 1) | I2C_MASTER_WRITE, true);
-        i2c_master_write_byte(cmd, reg_addr, true);
-        i2c_master_write(cmd, &data, 1, true);
-        i2c_master_stop(cmd);
-        // Use a reasonable timeout for the I2C transaction
-        ret = i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(10)); // Transaction timeout
-        i2c_cmd_link_delete(cmd);
-        xSemaphoreGive(i2c_mux);
-    } else {
-        ESP_LOGE("CST816S_DRV", "Failed to acquire I2C mutex to write reg 0x%02x", reg_addr);
-        ret = ESP_ERR_TIMEOUT;
-    }
-    if (ret != ESP_OK) {
-         ESP_LOGE("CST816S_DRV", "Failed to write reg 0x%02x: %s", reg_addr, esp_err_to_name(ret));
-    }
-    return ret;
-}
-
-esp_err_t cst816s_read_byte(esp_lcd_touch_handle_t tp_handle, uint8_t reg_addr, uint8_t *data,size_t len) {
-
-    int i2c_port = 0; // Replace with actual I2C port number if needed
-    uint8_t dev_addr = 0x15; // Replace with actual CST816S I2C address
-
-    esp_err_t ret = ESP_FAIL;
-    TickType_t mutex_timeout = pdMS_TO_TICKS(10); // Use a short timeout
-    if (xSemaphoreTake(i2c_mux, mutex_timeout) == pdTRUE){
-        i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-        i2c_master_start(cmd);
-        i2c_master_write_byte(cmd, (dev_addr << 1) | I2C_MASTER_WRITE, true);
-        i2c_master_write_byte(cmd, reg_addr, true);
-        i2c_master_start(cmd);
-        i2c_master_write_byte(cmd, (dev_addr << 1) | I2C_MASTER_READ, true);
-        i2c_master_read(cmd, data, len, I2C_MASTER_LAST_NACK);
-        i2c_master_stop(cmd);
-        ret = i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(10));
-        i2c_cmd_link_delete(cmd);
-        if (ret != ESP_OK) {
-            ESP_LOGE("CST816S_DRV", "I2C read error (reg 0x%02x, len %d): %s", reg_addr, len, esp_err_to_name(ret));
-        }
-        xSemaphoreGive(i2c_mux);
-    }else{
-        ESP_LOGE("CST816S_DRV", "Failed to acquire I2C mutex for read");
-    }
-    
-    return ret;
 }

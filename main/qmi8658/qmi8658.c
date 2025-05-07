@@ -8,6 +8,7 @@
 #include "qmi8658.h"
 
 extern SemaphoreHandle_t i2c_mux;		//i2c semaphore
+extern SemaphoreHandle_t step_count_mux;
 static uint32_t last_step_time = 0;
 static int step_count = 0;
 float alpha = 0.2; 		// between 0.0~1.0
@@ -128,7 +129,7 @@ esp_err_t qmi8658_init(){
 **/
 esp_err_t qmi8658_accAndgry(motion_data_t *data){
 	esp_err_t ret = ESP_FAIL;
-	uint8_t buf_reg[12];
+	uint8_t buf_reg[12];	//raw data
 	short raw_acc_xyz[3];
 	short raw_gyro_xyz[3];
 	float temp[6];
@@ -142,8 +143,7 @@ esp_err_t qmi8658_accAndgry(motion_data_t *data){
 	raw_gyro_xyz[1] = (short)((unsigned short)(buf_reg[9]<<8) | (buf_reg[8]));
 	raw_gyro_xyz[2] = (short)((unsigned short)(buf_reg[11]<<8) | (buf_reg[10]));
 	
-	float acc_scale = 2.0f / 32768.0f;		//dps/16bit(signed bit)
-	// ESP_LOGI(TAGQMI, "%d %d %d %d %d %d", raw_acc_xyz[0],raw_acc_xyz[1],raw_acc_xyz[2],raw_gyro_xyz[0],raw_gyro_xyz[1],raw_gyro_xyz[2]);
+	float acc_scale = 2.0f / 32768.0f;		//	dps/16bit(signed bit)	(2g、16bit)
 	//角度值
 	// temp[0] = (float)raw_acc_xyz[0] / sqrt((float)raw_acc_xyz[1]*(float)raw_acc_xyz[1] + (float)raw_acc_xyz[2]*(float)raw_acc_xyz[2]);
 	// temp[0] = atan(temp[0])*57.29578f;
@@ -161,7 +161,7 @@ esp_err_t qmi8658_accAndgry(motion_data_t *data){
 	temp[2] = raw_acc_xyz[1] * acc_scale;
 	data->acc[2] = temp[2];
 	
-	float scale = 256.0f / 32768.0f;		//dps/16bit(signed bit)
+	float scale = 256.0f / 32768.0f;		//dps/16bit(signed bit)	(256dps、16bit)
 	temp[3] = raw_gyro_xyz[0] * scale;
 	data->gyro[0] = temp[3];
 	temp[4] = raw_gyro_xyz[1] * scale;
@@ -184,7 +184,6 @@ uint16_t update_step_count(motion_data_t *data)
     float gyro_magnitude = sqrtf(data->gyro[0] * data->gyro[0]+ data->gyro[1] * data->gyro[1] + data->gyro[2] * data->gyro[2]);
 	// ESP_LOGI(TAGQMI, " acc magnitude = %f  gyro magnitude = %f",acc_magnitude,gyro_magnitude );
     uint32_t now_ms = esp_timer_get_time() / 1000;
-    // uint32_t now_ms = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
     // check if larger than threshold and time is big enough
     if ((acc_magnitude > STEP_THRESHOLD) && (prev_magnitude <= STEP_THRESHOLD) && gyro_magnitude > 5.0f) {
@@ -204,7 +203,11 @@ uint16_t update_step_count(motion_data_t *data)
  */
 int get_step_count()
 {
-    return step_count;
+	int curStep;
+	xSemaphoreTake(step_count_mux,pdMS_TO_TICKS(100));
+	curStep = step_count;
+	xSemaphoreGive(step_count_mux);
+	return curStep;
 }
 
 /**

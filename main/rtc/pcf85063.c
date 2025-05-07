@@ -125,7 +125,7 @@ esp_err_t rtc_pcf85063_init() {
 	// Initiate Normal Mode, RTC Run, NO reset, No correction, , 24hr format, Internal load capacitane 12.5pf
 
 	uint8_t PCFINIT_ = 0x49;
-    return rtc_write_reg(I2C_MASTER_NUM,&PCFINIT_,1);
+    return rtc_write_reg(ctrl1,&PCFINIT_,1);
 }
 
 /**
@@ -144,6 +144,6 @@ void rtc_set_alarm(rtc_time *time) {
     rtc_write_reg(0x0B, alarm_data, 5);
 
     // Enable Alarm interrupt
-    uint8_t ctrl2[] = {0x80}; // CTRL2: AF=0, AIE=1
-    rtc_write_reg(0x01, ctrl2, 1);
+    uint8_t ctrl2cmd[] = {0x80}; // CTRL2: AF=0, AIE=1
+    rtc_write_reg(ctrl2, ctrl2cmd, 1);
 }

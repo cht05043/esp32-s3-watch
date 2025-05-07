@@ -80,6 +80,44 @@ void url_decode(const char *src, char *dst) {
 }
 
 /**
+*@brief qmi8658 step get handler
+**/
+esp_err_t step_get_handler(httpd_req_t *req){
+    int step_count = get_step_count();
+    char step_str[64];
+    snprintf(step_str,sizeof(step_str),"%d",step_count);
+    
+    httpd_resp_set_type(req, "text/plain; charset=UTF-8");
+    httpd_resp_sendstr(req, step_str);
+    return ESP_OK;
+}
+
+/**
+*@brief pcf85063 time get handler
+**/
+esp_err_t time_get_handler(httpd_req_t *req)
+{
+    rtc_time now;
+    esp_err_t ret = rtc_get_time(&now);
+    if (ret != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "RTC read failed");
+        return ESP_FAIL;
+    }
+
+    char time_str[64];
+    snprintf(time_str, sizeof(time_str), "%04d-%02d-%02d %02d:%02d:%02d",
+             now.year + 2000 , now.month, now.day,
+             now.hours, now.minutes, now.seconds);
+
+    // printf("get time：%d-%d-%d %02d:%02d:%02d\n",
+    //     now.year, now.month, now.day,
+    //     now.hours, now.minutes, now.seconds);
+    httpd_resp_set_type(req, "text/plain; charset=UTF-8");
+    httpd_resp_sendstr(req, time_str);
+    return ESP_OK;
+}
+
+/**
 *@brief Set time handler
 **/
 esp_err_t time_post_handler(httpd_req_t *req)
@@ -95,7 +133,7 @@ esp_err_t time_post_handler(httpd_req_t *req)
         time_str += 9;
 
         char decoded_time[64];
-        url_decode(time_str, decoded_time);
+        url_decode(time_str, decoded_time);//%3A
 
         struct tm tm_time = {0};
         if (strptime(decoded_time, "%Y-%m-%dT%H:%M", &tm_time) == NULL) {
@@ -108,7 +146,7 @@ esp_err_t time_post_handler(httpd_req_t *req)
         settimeofday(&now, NULL);
 
         rtc_time current_time;
-        current_time.year = tm_time.tm_year + 1900;
+        current_time.year = tm_time.tm_year + 1900 - 2000;
         current_time.month = tm_time.tm_mon + 1;
         current_time.day = tm_time.tm_mday;
         current_time.hours = tm_time.tm_hour ;
@@ -132,27 +170,17 @@ esp_err_t time_post_handler(httpd_req_t *req)
 }
 
 /**
-*@brief default page handler
+*@brief default page handler(html)
 **/
 esp_err_t root_get_handler(httpd_req_t *req)
 {
-    // const char *html = "<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body>"
-    //                "<form action=\"/set_time\" method=\"POST\">"
-    //                "Choose Time：<input type=\"datetime-local\" name=\"datetime\">"
-    //                "<input type=\"submit\" value=\"Set\">"
-    //                "</form>"
-    //                "</body></html>";
-
-    // httpd_resp_set_type(req, "text/html; charset=UTF-8");
-    // httpd_resp_sendstr(req, html);
-    // return ESP_OK;
     FILE *f = fopen("/spiffs/index.html", "r");
     if (f == NULL) {
         ESP_LOGE("Web Server", "Failed to open index.html");
         httpd_resp_send_404(req);
         return ESP_FAIL;
     }
-        // 读取文件内容并发送到客户端
+        // read file and send to client
         char buffer[512];
         size_t read_bytes;
         httpd_resp_set_type(req, "text/html; charset=UTF-8");
@@ -161,17 +189,20 @@ esp_err_t root_get_handler(httpd_req_t *req)
             httpd_resp_send_chunk(req, buffer, read_bytes);
         }
     
-        fclose(f);  // 关闭文件
-        httpd_resp_send_chunk(req, NULL, 0);  // 结束响应
+        fclose(f);  // close
+        httpd_resp_send_chunk(req, NULL, 0);  // tell server all data is done
         return ESP_OK;
 }
 
+/**
+*@brief static file get handler (css js)。For web can load css and javascript(init one time)
+**/
 esp_err_t static_file_get_handler(httpd_req_t *req)
 {
     const char *uri = req->uri;
     char path[128];
 
-    // 根据 URI 设置正确的文件路径
+    // according uri to set path right
     if (strcmp(uri, "/style.css") == 0) {
         snprintf(path, sizeof(path), "/spiffs/style.css");
     } else if (strcmp(uri, "/script.js") == 0) {
@@ -182,7 +213,7 @@ esp_err_t static_file_get_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
-    // 打开静态文件
+    // open file
     FILE *f = fopen(path, "r");
     if (f == NULL) {
         ESP_LOGE("Web Server", "Failed to open file: %s", path);
@@ -190,20 +221,19 @@ esp_err_t static_file_get_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
-    // 读取文件并发送内容到客户端
     char buffer[512];
     size_t read_bytes;
-    httpd_resp_set_type(req, "text/css; charset=UTF-8");  // 根据文件类型设置响应类型，CSS
+    httpd_resp_set_type(req, "text/css; charset=UTF-8");  // set Content-Type，CSS
     if (strstr(uri, "script.js") != NULL) {
-        httpd_resp_set_type(req, "application/javascript; charset=UTF-8");  // JavaScript 文件类型
+        httpd_resp_set_type(req, "application/javascript; charset=UTF-8");  // JavaScript type
     }
 
     while ((read_bytes = fread(buffer, 1, sizeof(buffer), f)) > 0) {
         httpd_resp_send_chunk(req, buffer, read_bytes);
     }
 
-    fclose(f);  // 关闭文件
-    httpd_resp_send_chunk(req, NULL, 0);  // 结束响应
+    fclose(f);  // close
+    httpd_resp_send_chunk(req, NULL, 0);  // stop response
     return ESP_OK;
 }
 
@@ -230,6 +260,20 @@ void start_web_server()
         .handler = time_post_handler
     };
     httpd_register_uri_handler(server, &set_time);
+
+    httpd_uri_t get_time = {
+        .uri = "/time",
+        .method = HTTP_GET,
+        .handler = time_get_handler
+    };
+    httpd_register_uri_handler(server, &get_time);
+
+    httpd_uri_t get_step = {
+        .uri = "/steps",
+        .method = HTTP_GET,
+        .handler = step_get_handler
+    };
+    httpd_register_uri_handler(server, &get_step);
 
     httpd_uri_t style_css = {
         .uri = "/style.css",
